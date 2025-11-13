@@ -1,0 +1,19 @@
+artifact_path: xgb_model
+flavors:
+  python_function:
+    data: sparkml
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.spark
+    python_version: 3.11.6
+  spark:
+    code: null
+    model_class: pyspark.ml.pipeline.PipelineModel
+    model_data: sparkml
+    pyspark_version: 3.5.0
+mlflow_version: 2.14.1
+model_size_bytes: 172488
+model_uuid: 55da701d3e50485fa008d31d65383147
+run_id: 3a4ac222e6fa453cb0cc9a038983d365
+utc_time_created: '2025-11-12 03:31:34.762237'

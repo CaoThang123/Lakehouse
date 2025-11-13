@@ -48,6 +48,7 @@ services:
       - 8888:8888   # Jupyter Notebook UI
     volumes:
       - ./notebooks:/home/jovyan/notebooks
+      - ./mlflow/mlruns:/mlflow/mlruns
     env_file: .env
     networks:
       - iceberg_env
