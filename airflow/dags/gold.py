@@ -9,7 +9,7 @@ import pyspark
 def get_spark_session():
     AWS_ACCESS_KEY = "minioadmin"
     AWS_SECRET_KEY = "minioadmin"
-    AWS_S3_ENDPOINT = "http://minio_server:9000"
+    AWS_S3_ENDPOINT = "http://minio:9000"
     WAREHOUSE = "s3a://gold/"
     NESSIE_URI = "http://nessie:19120/api/v1"
 
@@ -17,10 +17,21 @@ def get_spark_session():
         pyspark.SparkConf()
         .setAppName("Lakehouse-Iceberg-GOLD")  
         .set('spark.jars.packages',
-             'org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:1.3.1,'
-             'org.projectnessie.nessie-integrations:nessie-spark-extensions-3.3_2.12:0.67.0,'
-             'org.apache.hadoop:hadoop-aws:3.3.4,'
-             'com.amazonaws:aws-java-sdk-bundle:1.12.300')
+            # Iceberg Spark runtime cho Spark 3.5
+            'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.3.1,'
+            'org.apache.iceberg:iceberg-parquet:1.3.1,'
+            'org.apache.iceberg:iceberg-avro:1.3.1,'
+            'org.apache.iceberg:iceberg-core:1.3.1,'
+            'org.apache.hadoop:hadoop-common:3.3.6,'
+            'org.apache.hadoop:hadoop-client:3.3.6,'
+            # Nessie Spark extension
+            'org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.67.0,'
+            # Hadoop S3 support
+            'org.apache.hadoop:hadoop-aws:3.3.6,'
+            # AWS SDK bundle
+            'com.amazonaws:aws-java-sdk-bundle:1.12.526'
+        )
+        # Iceberg catalog
         .set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
         .set("spark.sql.catalog.nessie.uri", NESSIE_URI)
         .set("spark.sql.catalog.nessie.ref", "main")
@@ -28,6 +39,7 @@ def get_spark_session():
         .set("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.NessieCatalog")
         .set("spark.sql.catalog.nessie.warehouse", WAREHOUSE)
         .set("spark.sql.catalog.nessie.io-impl", "org.apache.iceberg.hadoop.HadoopFileIO")
+        # S3 config
         .set("spark.sql.catalog.nessie.s3.endpoint", AWS_S3_ENDPOINT)
         .set("spark.sql.catalog.nessie.s3.access-key", AWS_ACCESS_KEY)
         .set("spark.sql.catalog.nessie.s3.secret-key", AWS_SECRET_KEY)
@@ -35,11 +47,25 @@ def get_spark_session():
         .set("spark.hadoop.fs.s3a.secret.key", AWS_SECRET_KEY)
         .set("spark.hadoop.fs.s3a.endpoint", AWS_S3_ENDPOINT)
         .set("spark.hadoop.fs.s3a.path.style.access", "true")
+        .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        # Tối ưu upload/download cho S3/MinIO
+        .set("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
+        .set("spark.hadoop.fs.s3a.fast.upload", "true")
+        .set("spark.hadoop.fs.s3a.multipart.size", "104857600")  # 100MB
     )
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
-    spark._jsc.hadoopConfiguration().set("fs.s3a.path.style.access", "true")
+
+    # đảm bảo path-style access và impl cho S3
+    hconf = spark._jsc.hadoopConfiguration()
+    hconf.set("fs.s3a.path.style.access", "true")
+    hconf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    hconf.set("fs.s3a.connection.ssl.enabled", "false")
+    hconf.set("fs.s3a.fast.upload", "true")
+    hconf.set("fs.s3a.multipart.size", "104857600")
+
     return spark
+
 
 # -----------------------------
 # Hàm ghi Iceberg: tạo nếu chưa có, append nếu đã tồn tại
