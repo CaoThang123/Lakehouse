@@ -1,3 +1,4 @@
+# load_purchase.py
 from config_spark import get_spark_session
 from pyspark.sql.functions import col, to_date
 from pyspark.sql.utils import AnalysisException
@@ -50,4 +51,5 @@ def process_purchase_file(filename="amazon-purchases.csv"):
 
     print(f"Hoàn tất xử lý file: {filename}")
     spark.stop()
-
+if __name__ == "__main__":
+    process_purchase_file("amazon-purchases.csv")

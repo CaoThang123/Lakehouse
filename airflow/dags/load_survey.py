@@ -1,5 +1,7 @@
+# load_survey.py
 from config_spark import get_spark_session
 from pyspark.sql.functions import col, when, trim, lit
+from pyspark.sql.utils import AnalysisException
 
 def process_survey_file(filename="survey.csv"):
     """
@@ -35,9 +37,16 @@ def process_survey_file(filename="survey.csv"):
 
     # 3️⃣ Ghi vào bảng Iceberg (Silver)
     table_name = "nessie.survey"
-    existing_tables = [t.name for t in spark.catalog.listTables("nessie")]
+    
+    try:
+        spark.table(table_name)
+        table_exists = True
+        print(f"Bảng {table_name} đã tồn tại → append dữ liệu mới.")
+    except AnalysisException:
+        table_exists = False
+        print(f"Bảng {table_name} chưa tồn tại → sẽ tạo mới.")
 
-    if table_name.split(".")[-1] in existing_tables:
+    if table_exists:
         print(f"💾 Bảng {table_name} đã tồn tại → append dữ liệu")
         df_survey_clean.writeTo(table_name).append()
     else:
@@ -46,3 +55,6 @@ def process_survey_file(filename="survey.csv"):
 
     print(f"✅ Hoàn tất xử lý file: {filename}")
     spark.stop()
+
+if __name__ == "__main__":
+    process_survey_file("survey.csv")
