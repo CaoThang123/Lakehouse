@@ -1,5 +1,5 @@
 # Airflow logs và data tạm
 airflow/logs/
 airflow/plugins/__pycache__/
-
+airflow/jars/
 notebooks/dataverse_files/
