@@ -30,6 +30,9 @@ def get_spark_session1():
         .set("spark.executor.extraClassPath", ",".join(jars_list))
         # serializer để performance tốt hơn
         .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+        .set("spark.network.timeout", "600s")
+        .set("spark.executor.heartbeatInterval", "60s")
+        .set("spark.rpc.askTimeout", "300s")
         # Iceberg catalog
         .set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
         .set("spark.sql.catalog.nessie.uri", NESSIE_URI)
@@ -73,14 +76,19 @@ def get_spark_session1():
 # Hàm ghi Iceberg: tạo nếu chưa có, append nếu đã tồn tại
 # -----------------------------
 def save_iceberg_table(df, table_name, spark):
-    existing_tables = [t.name for t in spark.catalog.listTables("nessie", "main")]
+    try:
+        existing_tables = [t.name for t in spark.catalog.listTables("nessie", "main")]
+    except Exception as e:
+        print(f"⚠️ Không thể liệt kê tables: {str(e)}")
+        existing_tables = []
+
     if table_name in existing_tables:
         print(f"Bảng {table_name} đã tồn tại → append dữ liệu mới")
         df.writeTo(f"nessie.{table_name}").append()
     else:
         print(f"Bảng {table_name} chưa tồn tại → tạo mới")
-        df.writeTo(f"nessie.{table_name}").create()
-
+        # Dùng create() bình thường, vì đã check existence ở trên
+        df.writeTo(f"nessie.{table_name}").createOrReplace()
 # -----------------------------
 # Hàm tạo dim_customer
 # -----------------------------
