@@ -49,7 +49,7 @@ def process_purchase_file(filename="amazon-purchases.csv"):
     else:
         df_amazon_clean.writeTo(table_name).createOrReplace()
 
-    print(f"Hoàn tất xử lý file: {filename}")
+    print(f"✅ Hoàn tất xử lý file: {filename}")
     spark.stop()
 if __name__ == "__main__":
     process_purchase_file("amazon-purchases.csv")

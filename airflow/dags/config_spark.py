@@ -20,6 +20,7 @@ def get_spark_session(app_name="Lakehouse-Iceberg-ETL"):
     conf = (
         pyspark.SparkConf()
         .setAppName(app_name)
+        .setMaster("spark://spark-master:7077")
         .set("spark.jars", ",".join(jars_list))
         .set("spark.driver.extraClassPath", ",".join(jars_list))
         .set("spark.executor.extraClassPath", ",".join(jars_list))

@@ -24,6 +24,7 @@ def get_spark_session1():
     conf = (
         pyspark.SparkConf()
         .setAppName("Lakehouse-Iceberg-GOLD")  
+        .setMaster("spark://spark-master:7077")
         .set("spark.jars", ",".join(jars_list))
         .set("spark.driver.extraClassPath", ",".join(jars_list))
         .set("spark.executor.extraClassPath", ",".join(jars_list))
@@ -72,7 +73,7 @@ def get_spark_session1():
 # Hàm ghi Iceberg: tạo nếu chưa có, append nếu đã tồn tại
 # -----------------------------
 def save_iceberg_table(df, table_name, spark):
-    existing_tables = [t.name for t in spark.catalog.listTables("nessie")]
+    existing_tables = [t.name for t in spark.catalog.listTables("nessie", "main")]
     if table_name in existing_tables:
         print(f"Bảng {table_name} đã tồn tại → append dữ liệu mới")
         df.writeTo(f"nessie.{table_name}").append()

@@ -36,7 +36,7 @@ def process_fields_file(filename="fields.csv"):
         table_exists = False
         print(f"Bảng {table_name} chưa tồn tại → sẽ tạo mới.")
 
-    if table_name.split(".")[-1] in table_exists:
+    if table_exists:
         print(f"💾 Bảng {table_name} đã tồn tại → append dữ liệu")
         df_fields_clean.writeTo(table_name).append()
     else:
