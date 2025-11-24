@@ -1,15 +1,14 @@
 # dags/ecommerce_pipeline_dag.py
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from airflow.models import Variable
 from datetime import datetime
 from ingestion import import_data_to_minio
-from load_purchase import process_purchase_file
-from load_survey import process_survey_file
-from load_field import process_fields_file
-from gold import build_gold_layer
+
 
 # ===============================
-# Các hàm wrapper cho từng task
+# Các hàm wrapper cho từng task 
 # ===============================
 def task_import_data():
     """
@@ -19,43 +18,9 @@ def task_import_data():
     files = import_data_to_minio()
     if not files:
         print("⏹ Không có file mới → Dừng pipeline.")
+    else:
+        Variable.set("imported_files", str(files))  # lưu danh sách file để Spark task dùng
     return files
-
-def task_process_purchase(**context):
-    files = context['ti'].xcom_pull(task_ids='import_data')
-    if not files:
-        return
-    for f in files:
-        if "purchase" in f.lower():
-            print(f"➡️ Xử lý PURCHASE: {f}")
-            process_purchase_file(f)
-
-def task_process_survey(**context):
-    files = context['ti'].xcom_pull(task_ids='import_data')
-    if not files:
-        return
-    for f in files:
-        if "survey" in f.lower():
-            print(f"➡️ Xử lý SURVEY: {f}")
-            process_survey_file(f)
-
-def task_process_field(**context):
-    files = context['ti'].xcom_pull(task_ids='import_data')
-    if not files:
-        return
-    for f in files:
-        if "field" in f.lower():
-            print(f"➡️ Xử lý FIELDS: {f}")
-            process_fields_file(f)
-
-def task_build_gold():
-    print("\n🎯 Bắt đầu build Gold Layer...")
-    build_gold_layer()
-    print("🎉 Hoàn tất pipeline.")
-
-# ===============================
-# DAG definition
-# ===============================
 with DAG(
     dag_id="ecommerce_pipeline",
     start_date=datetime(2025, 11, 1),
@@ -63,36 +28,63 @@ with DAG(
     catchup=False
 ) as dag:
 
+    common_jars = ",".join([
+            "/opt/airflow/jars/iceberg-spark-runtime-3.5_2.12-1.10.0.jar",
+            "/opt/airflow/jars/nessie-spark-extensions-3.5_2.12-0.105.7.jar",
+            "/opt/airflow/jars/hadoop-aws-3.3.4.jar",
+            "/opt/airflow/jars/hadoop-common-3.3.4.jar",
+            "/opt/airflow/jars/aws-java-sdk-bundle-1.12.300.jar"
+            ])
+    
+    # 1️⃣ Python task: Tải file lên MinIO
     import_data = PythonOperator(
         task_id='import_data',
         python_callable=task_import_data
     )
 
-    process_purchase = PythonOperator(
+    # 2️⃣ Spark task: xử lý purchase
+    process_purchase = SparkSubmitOperator(
         task_id='process_purchase',
-        python_callable=task_process_purchase,
-        provide_context=True
+        application="/opt/airflow/dags/load_purchase.py",
+        conn_id="spark_default",
+        jars=common_jars,
+        executor_memory="2g",
+        driver_memory="1g",
+        verbose=True
     )
 
-    process_survey = PythonOperator(
+    # 3️⃣ Spark task: xử lý survey
+    process_survey = SparkSubmitOperator(
         task_id='process_survey',
-        python_callable=task_process_survey,
-        provide_context=True
+        application="/opt/airflow/dags/load_survey.py",
+        conn_id="spark_default",
+        jars=common_jars,
+        executor_memory="2g",
+        driver_memory="1g",
+        verbose=True
     )
 
-    process_field = PythonOperator(
+    # 4️⃣ Spark task: xử lý field
+    process_field = SparkSubmitOperator(
         task_id='process_field',
-        python_callable=task_process_field,
-        provide_context=True
+        application="/opt/airflow/dags/load_field.py",
+        conn_id="spark_default",
+        jars=common_jars,
+        executor_memory="2g",
+        driver_memory="1g",
+        verbose=True
     )
 
-    build_gold = PythonOperator(
+    # 5️⃣ Spark task: build GOLD
+    build_gold = SparkSubmitOperator(
         task_id='build_gold',
-        python_callable=task_build_gold
+        application="/opt/airflow/dags/gold.py",
+        conn_id="spark_default",
+        jars=common_jars,
+        executor_memory="2g",
+        driver_memory="1g",
+        verbose=True
     )
 
-# ===============================
-# DAG structure
-# ===============================
-# import_data → purchase/survey/field → build_gold
+
 import_data >> [process_purchase, process_survey, process_field] >> build_gold

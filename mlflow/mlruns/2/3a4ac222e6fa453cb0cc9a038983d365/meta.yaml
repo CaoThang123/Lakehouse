@@ -1,0 +1,16 @@
+artifact_uri: file:///mlflow/mlruns/2/3a4ac222e6fa453cb0cc9a038983d365/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '2'
+lifecycle_stage: active
+name: XGBoost_Model
+run_id: 3a4ac222e6fa453cb0cc9a038983d365
+run_uuid: 3a4ac222e6fa453cb0cc9a038983d365
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1730000002000
+status: 4
+tags: []
+user_id: ''
+

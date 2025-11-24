@@ -1,0 +1,7 @@
+artifact_location: file:///mlflow/mlruns/1
+creation_time: 1730000000000
+experiment_id: '1'
+last_update_time: 1730000000000
+lifecycle_stage: active
+name: XGBoost_Regression
+

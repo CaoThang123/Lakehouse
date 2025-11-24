@@ -1,2 +1,2 @@
 minio
-pyspark
+apache-airflow-providers-apache-spark

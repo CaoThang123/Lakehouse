@@ -1,0 +1,16 @@
+artifact_uri: file:///mlflow/mlruns/2/93674ed5e28b4b0d91ea1d5df8450155/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '2'
+lifecycle_stage: active
+name: RandomForest_Model
+run_id: 93674ed5e28b4b0d91ea1d5df8450155
+run_uuid: 93674ed5e28b4b0d91ea1d5df8450155
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1730000003000
+status: 4
+tags: []
+user_id: ''
+
