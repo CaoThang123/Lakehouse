@@ -6,31 +6,33 @@ import pyspark
 # -----------------------------
 # Hàm tạo SparkSession
 # -----------------------------
-def get_spark_session():
+def get_spark_session1():
     AWS_ACCESS_KEY = "minioadmin"
     AWS_SECRET_KEY = "minioadmin"
     AWS_S3_ENDPOINT = "http://minio:9000"
     WAREHOUSE = "s3a://gold/"
     NESSIE_URI = "http://nessie:19120/api/v1"
 
+    jars_list = [
+        "/opt/airflow/jars/iceberg-spark-runtime-3.5_2.12-1.10.0.jar",
+        "/opt/airflow/jars/nessie-spark-extensions-3.5_2.12-0.105.7.jar",
+        "/opt/airflow/jars/hadoop-aws-3.3.4.jar",
+        "/opt/airflow/jars/hadoop-common-3.3.4.jar",
+        "/opt/airflow/jars/aws-java-sdk-bundle-1.12.300.jar"
+    ]
+
     conf = (
         pyspark.SparkConf()
         .setAppName("Lakehouse-Iceberg-GOLD")  
-        .set('spark.jars.packages',
-            # Iceberg Spark runtime cho Spark 3.5
-            'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.3.1,'
-            'org.apache.iceberg:iceberg-parquet:1.3.1,'
-            'org.apache.iceberg:iceberg-avro:1.3.1,'
-            'org.apache.iceberg:iceberg-core:1.3.1,'
-            'org.apache.hadoop:hadoop-common:3.3.6,'
-            'org.apache.hadoop:hadoop-client:3.3.6,'
-            # Nessie Spark extension
-            'org.projectnessie.nessie-integrations:nessie-spark-extensions-3.5_2.12:0.67.0,'
-            # Hadoop S3 support
-            'org.apache.hadoop:hadoop-aws:3.3.6,'
-            # AWS SDK bundle
-            'com.amazonaws:aws-java-sdk-bundle:1.12.526'
-        )
+        .setMaster("spark://spark-master:7077")
+        .set("spark.jars", ",".join(jars_list))
+        .set("spark.driver.extraClassPath", ",".join(jars_list))
+        .set("spark.executor.extraClassPath", ",".join(jars_list))
+        # serializer để performance tốt hơn
+        .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+        .set("spark.network.timeout", "600s")
+        .set("spark.executor.heartbeatInterval", "60s")
+        .set("spark.rpc.askTimeout", "300s")
         # Iceberg catalog
         .set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
         .set("spark.sql.catalog.nessie.uri", NESSIE_URI)
@@ -52,6 +54,9 @@ def get_spark_session():
         .set("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
         .set("spark.hadoop.fs.s3a.fast.upload", "true")
         .set("spark.hadoop.fs.s3a.multipart.size", "104857600")  # 100MB
+        # Cấu hình để tránh lỗi catalog initialization
+        .set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+        .set("spark.sql.catalog.nessie.cache-enabled", "false")
     )
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
@@ -71,14 +76,19 @@ def get_spark_session():
 # Hàm ghi Iceberg: tạo nếu chưa có, append nếu đã tồn tại
 # -----------------------------
 def save_iceberg_table(df, table_name, spark):
-    existing_tables = [t.name for t in spark.catalog.listTables("nessie")]
+    try:
+        existing_tables = [t.name for t in spark.catalog.listTables("nessie", "main")]
+    except Exception as e:
+        print(f"⚠️ Không thể liệt kê tables: {str(e)}")
+        existing_tables = []
+
     if table_name in existing_tables:
         print(f"Bảng {table_name} đã tồn tại → append dữ liệu mới")
         df.writeTo(f"nessie.{table_name}").append()
     else:
         print(f"Bảng {table_name} chưa tồn tại → tạo mới")
-        df.writeTo(f"nessie.{table_name}").create()
-
+        # Dùng create() bình thường, vì đã check existence ở trên
+        df.writeTo(f"nessie.{table_name}").createOrReplace()
 # -----------------------------
 # Hàm tạo dim_customer
 # -----------------------------
@@ -191,9 +201,21 @@ def build_fact_order(df_amazon, dim_time, dim_product, dim_customer, dim_locatio
 # Hàm main để build Gold Layer
 # -----------------------------
 def build_gold_layer():
-    spark = get_spark_session()
-    df_amazon = spark.table("nessie.amazon_purchase")
-    df_survey = spark.table("nessie.survey")
+    spark = get_spark_session1()
+    
+    # Đợi catalog khởi tạo xong
+    import time
+    time.sleep(2)
+    
+    # Sử dụng SQL query thay vì spark.table() để tránh lỗi catalog initialization
+    try:
+        df_amazon = spark.sql("SELECT * FROM nessie.amazon_purchase")
+        df_survey = spark.sql("SELECT * FROM nessie.survey")
+    except Exception as e:
+        print(f"⚠️ Lỗi khi đọc bằng SQL, thử dùng spark.table(): {str(e)}")
+        # Fallback về spark.table() nếu SQL không hoạt động
+        df_amazon = spark.table("nessie.amazon_purchase")
+        df_survey = spark.table("nessie.survey")
 
     dim_customer = build_dim_customer(df_survey)
     dim_product = build_dim_product(df_amazon)

@@ -1,4 +1,6 @@
+# load_field.py
 from config_spark import get_spark_session
+from pyspark.sql.utils import AnalysisException
 
 def process_fields_file(filename="fields.csv"):
     """
@@ -24,9 +26,17 @@ def process_fields_file(filename="fields.csv"):
 
     # 3️⃣ Ghi vào bảng Iceberg (Silver)
     table_name = "nessie.fields"
-    existing_tables = [t.name for t in spark.catalog.listTables("nessie")]
 
-    if table_name.split(".")[-1] in existing_tables:
+    try:
+        # Kiểm tra xem bảng đã tồn tại chưa
+        spark.table(table_name)
+        table_exists = True
+        print(f"Bảng {table_name} đã tồn tại → append dữ liệu mới.")
+    except AnalysisException:
+        table_exists = False
+        print(f"Bảng {table_name} chưa tồn tại → sẽ tạo mới.")
+
+    if table_exists:
         print(f"💾 Bảng {table_name} đã tồn tại → append dữ liệu")
         df_fields_clean.writeTo(table_name).append()
     else:
@@ -35,3 +45,6 @@ def process_fields_file(filename="fields.csv"):
 
     print(f"✅ Hoàn tất xử lý file: {filename}")
     spark.stop()
+
+if __name__ == "__main__":
+    process_fields_file("fields.csv")
